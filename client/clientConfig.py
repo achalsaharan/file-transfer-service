@@ -1,0 +1,3 @@
+PORT = 6543
+HOST = '127.0.0.1'
+CLIENT_ID = 1
