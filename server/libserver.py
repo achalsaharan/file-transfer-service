@@ -5,10 +5,57 @@ import json
 import io
 import socket
 
-from checkUpdate import updateChecker
+from databaseConnection import Database
 
 # Check fixed len header and json header to find client_id
 # Then check if an update is present
+
+# incoming request
+# fixed len header (2 bytes) | JSON Header | data(if necessary)
+# incomming JSON Header format
+# {
+#     "content-type",
+#     "client_id",
+#     "content-length"
+# }
+
+# outgoing request
+# fixed len header (2 bytes) | JSON Header | file (if found)
+# outgoing JSON header format
+# {
+#     "byteorder": sys.byteorder,
+#     "content-type": content_type,
+#     "content-encoding": content_encoding,
+#     "content-length": len(content_bytes),
+#     "file-name",
+#     "extension",
+#     "md-5-hash",
+
+# }
+
+
+class ResponseHeader:
+    def __init__(self, byteorder, content_type, content_encoding, content_length, filename):
+        self.byteorder = byteorder
+        self.content_type = content_type
+        self.content_encoding = content_encoding
+        self.content_length = content_length
+        self.filename = filename
+
+    def createHeader(self):
+        db = Database()
+        md_5_hash = db.findFileHash(self.filename)
+        extension = self.filename.split('.')[1]
+        jsonHeader = {
+            "byteorder": sys.byteorder,
+            "content-type": self.content_type,
+            "content-encoding": self.content_encoding,
+            "content-length": self.content_length,
+            "file-name": self.filename,
+            "extension": extension,
+            "md-5-hash": md_5_hash
+        }
+        return jsonHeader
 
 
 class Message:
@@ -23,6 +70,7 @@ class Message:
         self._recv_buffer = b""
         self._send_buffer = b""
         self._jsonheader_len = None
+        self.db = Database()
 
     def _set_selector_events_mask(self, mode):
         # Set selector to listen for events: mode is 'r', 'w', or 'rw'.
@@ -116,12 +164,16 @@ class Message:
     def _create_message(
         self, *, content_bytes, content_type, content_encoding
     ):
-        jsonheader = {
-            "byteorder": sys.byteorder,
-            "content-type": content_type,
-            "content-encoding": content_encoding,
-            "content-length": len(content_bytes),
-        }
+        # jsonheader = {
+        #     "byteorder": sys.byteorder,
+        #     "content-type": content_type,
+        #     "content-encoding": content_encoding,
+        #     "content-length": len(content_bytes),
+        # }
+        header = ResponseHeader(
+            sys.byteorder, 'text/json', content_encoding, len(content_bytes), 'file1.txt')
+        jsonheader = header.createHeader()
+
         jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
         message_hdr = struct.pack(">H", len(jsonheader_bytes))
         message = message_hdr + jsonheader_bytes + content_bytes
@@ -185,7 +237,7 @@ class Message:
         # At this point we have the json header
         # We need to check for updates and respond
         client_no = self.jsonheader["client_id"]
-        filename = updateChecker(client_no)
+        filename = self.db.checkUpdate(client_no)
 
         if filename == 0:
             self.filename = 0

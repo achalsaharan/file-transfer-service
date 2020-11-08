@@ -25,7 +25,7 @@ def _json_decode(json_bytes, encoding):
 
 json_header = {
     "content-type": "text/json",
-    "client_id": 3,
+    "client_id": 2,
     "content-length": 0
 }
 
