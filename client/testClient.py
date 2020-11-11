@@ -25,7 +25,7 @@ def _json_decode(json_bytes, encoding):
 
 json_header = {
     "content-type": "text/json",
-    "client_id": 2,
+    "client_id": 6,
     "content-length": 0
 }
 
@@ -48,8 +48,11 @@ print(json_header)
 
 # reciving the content
 content_length = json_header['content-length']
-content = sock.recv(content_length)
-content = _json_decode(content, "utf-8")
-print(content)
+if content_length == 0:
+    print("***No updates from server***")
+else:
+    content = sock.recv(content_length)
+    content = _json_decode(content, "utf-8")
+    print(content)
 
 sock.close()
