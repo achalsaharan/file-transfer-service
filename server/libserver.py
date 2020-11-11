@@ -66,7 +66,6 @@ class ResponseHeader:
 
 class Message:
     def __init__(self, selector, sock, addr):
-        print("INSIDE MESSAGE CONSTRUCTOR")
         self.selector = selector
         self.sock = sock
         self.addr = addr
@@ -243,9 +242,12 @@ class Message:
                     raise ValueError(f'Missing required header "{reqhdr}".')
 
     def process_request(self):
-        # At this point we have the json header
-        # We need to check for updates and respond
-        # This is called by the read() function and after this function executes we only write
+        """
+        At this point we have the json header.
+        We need to check for updates and respond.
+        This is called by the read() function and after this function executes we only write.
+        """
+        
         client_no = self.jsonheader["client_id"]
         filename = self.db.checkUpdate(client_no)
 
@@ -263,11 +265,9 @@ class Message:
         self._set_selector_events_mask("w")
 
     def create_response(self):
-
-        # checking this condition is not necessary now
-        # if self.jsonheader["content-type"] == "text/json":
-        #     response = self._create_response_json_content()
-
+        """
+        This function reads the contents of the file to be sent and creates the _send_buffer.
+        """
         if self.filename == 0:
             content = ""
         else:
@@ -276,10 +276,10 @@ class Message:
 
         content_encoding = "utf-8"
         content_bytes = self._json_encode(content, content_encoding)
+    
 
-        jsonheader = self.response_header(
+        jsonheader = self.generate_response_header(
             sys.byteorder, 'text/json', content_encoding, len(content_bytes), self.filename)
-        # jsonheader = header.createHeader()
 
         jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
         message_hdr = struct.pack(">H", len(jsonheader_bytes))
@@ -288,27 +288,46 @@ class Message:
         self.response_created = True
         self._send_buffer += message
     
-    def response_header(self, byteorder, content_type, content_encoding, content_length, filename):
+    def generate_response_header(self, byteorder, content_type, content_encoding, content_length, filename):
+        """
+        This function creates the jsonHeader to be sent. The jsonHeader contains imp info such as
+        file name, file length, md5 hash etc.
+        """
         self.byteorder = byteorder
         self.content_type = content_type
         self.content_encoding = content_encoding
         self.content_length = content_length
         self.filename = filename
 
-        db = Database()
-        md_5_hash = db.findFileHash(self.filename)
-        extension = self.filename.split('.')[1]
-        jsonHeader = {
-            "byteorder": sys.byteorder,
-            "content-type": self.content_type,
-            "content-encoding": self.content_encoding,
-            "content-length": self.content_length,
-            "file-name": self.filename,
-            "extension": extension,
-            "md-5-hash": md_5_hash
-        }
-        return jsonHeader
+        # if client_id is not found or server has nothing to send then return a jsonHeader such that
+        # jsonHeader["file-name"] = 0
+        if self.filename == 0:      
+            self.content_length = 0
+            jsonHeader = {
+                "byteorder": sys.byteorder,
+                "content-type": self.content_type,
+                "content-encoding": self.content_encoding,
+                "content-length": self.content_length,
+                "file-name": self.filename
+            }
+            return jsonHeader
 
+        else:
+            db = Database()
+            md_5_hash = db.findFileHash(self.filename)
+            extension = self.filename.split('.')[1]
+            jsonHeader = {
+                "byteorder": sys.byteorder,
+                "content-type": self.content_type,
+                "content-encoding": self.content_encoding,
+                "content-length": self.content_length,
+                "file-name": self.filename,
+                "extension": extension,
+                "md-5-hash": md_5_hash
+            }
+            return jsonHeader
+
+        
     def close(self):
         print("closing connection to", self.addr)
         try:

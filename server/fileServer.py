@@ -32,11 +32,9 @@ def accept_connection(sock):
     # Only asking to check for read now because server will initally always listen for incomming connections
     sel.register(conn, selectors.EVENT_READ, data=message)
 
-
 try:
     while True:
         events = sel.select(timeout=None)
-
         for key, mask in events:
             # New connection
             if key.data is None:
