@@ -66,6 +66,7 @@ class ResponseHeader:
 
 class Message:
     def __init__(self, selector, sock, addr):
+        print("INSIDE MESSAGE CONSTRUCTOR")
         self.selector = selector
         self.sock = sock
         self.addr = addr
@@ -276,9 +277,9 @@ class Message:
         content_encoding = "utf-8"
         content_bytes = self._json_encode(content, content_encoding)
 
-        header = ResponseHeader(
+        jsonheader = self.response_header(
             sys.byteorder, 'text/json', content_encoding, len(content_bytes), self.filename)
-        jsonheader = header.createHeader()
+        # jsonheader = header.createHeader()
 
         jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
         message_hdr = struct.pack(">H", len(jsonheader_bytes))
@@ -286,6 +287,27 @@ class Message:
 
         self.response_created = True
         self._send_buffer += message
+    
+    def response_header(self, byteorder, content_type, content_encoding, content_length, filename):
+        self.byteorder = byteorder
+        self.content_type = content_type
+        self.content_encoding = content_encoding
+        self.content_length = content_length
+        self.filename = filename
+
+        db = Database()
+        md_5_hash = db.findFileHash(self.filename)
+        extension = self.filename.split('.')[1]
+        jsonHeader = {
+            "byteorder": sys.byteorder,
+            "content-type": self.content_type,
+            "content-encoding": self.content_encoding,
+            "content-length": self.content_length,
+            "file-name": self.filename,
+            "extension": extension,
+            "md-5-hash": md_5_hash
+        }
+        return jsonHeader
 
     def close(self):
         print("closing connection to", self.addr)
