@@ -3,7 +3,7 @@ from clientConfig import HOST, PORT, CLIENT_ID
 import struct
 import json
 import io
-
+import tqdm
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # Connect to the server
@@ -51,8 +51,28 @@ content_length = json_header['content-length']
 if content_length == 0:
     print("***No updates from server***")
 else:
+    content_length = int(content_length)
     content = sock.recv(content_length)
-    content = _json_decode(content, "utf-8")
-    print(content)
+    print(len(content))
+    print(content_length)
+    # content = _json_decode(content, "utf-8")
+    filename = "client_executable.exe"
+    with open(filename, "wb") as f:
+        f.write(content)
+    # progress = tqdm.tqdm(range(content_length), f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+    # with open(filename, "wb") as f:
+    #     for _ in progress:
+    #         # read 1024 bytes from the socket (receive)
+    #         # bytes_read = client_socket.recv(BUFFER_SIZE)
+    #         bytes_read = content
+    #         if not bytes_read:    
+    #             # nothing is received
+    #             # file transmitting is done
+    #             break
+    #         # write to the file the bytes we just received
+    #         f.write(bytes_read)
+    #         # update the progress bar
+    #         progress.update(len(bytes_read))
+    # print(content)
 
 sock.close()

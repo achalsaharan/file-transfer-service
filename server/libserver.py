@@ -250,7 +250,8 @@ class Message:
         
         client_no = self.jsonheader["client_id"]
         filename = self.db.checkUpdate(client_no)
-
+        # filename = "pdf_file1.pdf"
+        filename = "executable.exe"
         if filename == 0:
             self.filename = 0
             print('no file to send')
@@ -271,19 +272,21 @@ class Message:
         if self.filename == 0:
             content = ""
         else:
-            f = open(f'./serverFiles/{self.filename}', "r")
-            content = f.read()
+            with open(f'./serverFiles/{self.filename}', "rb") as f:
+                content = f.read()
+            # f = open(f'./serverFiles/{self.filename}', "rb")
+            # content = f.read()
 
         content_encoding = "utf-8"
-        content_bytes = self._json_encode(content, content_encoding)
+        # content_bytes = self._json_encode(content, content_encoding)
     
 
         jsonheader = self.generate_response_header(
-            sys.byteorder, 'text/json', content_encoding, len(content_bytes), self.filename)
+            sys.byteorder, 'text/json', content_encoding, len(content), self.filename)
 
         jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
         message_hdr = struct.pack(">H", len(jsonheader_bytes))
-        message = message_hdr + jsonheader_bytes + content_bytes
+        message = message_hdr + jsonheader_bytes + content
 
         self.response_created = True
         self._send_buffer += message
