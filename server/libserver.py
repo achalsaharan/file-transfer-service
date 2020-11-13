@@ -35,35 +35,6 @@ from databaseConnection import Database
 # }
 
 
-class FileResponse:
-    def __init__(self, filename):
-        self.filename = filename
-
-
-class ResponseHeader:
-    def __init__(self, byteorder, content_type, content_encoding, content_length, filename):
-        self.byteorder = byteorder
-        self.content_type = content_type
-        self.content_encoding = content_encoding
-        self.content_length = content_length
-        self.filename = filename
-
-    def createHeader(self):
-        db = Database()
-        md_5_hash = db.findFileHash(self.filename)
-        extension = self.filename.split('.')[1]
-        jsonHeader = {
-            "byteorder": sys.byteorder,
-            "content-type": self.content_type,
-            "content-encoding": self.content_encoding,
-            "content-length": self.content_length,
-            "file-name": self.filename,
-            "extension": extension,
-            "md-5-hash": md_5_hash
-        }
-        return jsonHeader
-
-
 class Message:
     def __init__(self, selector, sock, addr):
         self.selector = selector
@@ -131,62 +102,6 @@ class Message:
     def _json_encode(self, obj, encoding):
         return json.dumps(obj, ensure_ascii=False).encode(encoding)
 
-# todo not using this
-    def _create_response_json_content(self):
-
-        # we are creating the actual response here
-        # neither the json header nor the fixed length header
-
-        # looks like this is not even the actual response
-
-        if self.filename == 0:
-            content = {
-                "update": "False",
-                "filename": "none"
-            }
-        else:
-            content = {
-                "update": "True",
-                "filename": self.filename
-            }
-
-        content_encoding = "utf-8"
-        response = {
-            "content_bytes": self._json_encode(content, content_encoding),
-            "content_type": "text/json",
-            "content_encoding": content_encoding,
-        }
-        return response
-
-# todo not using this
-    def _create_response_binary_content(self):
-        response = {
-            "content_bytes": b"First 10 bytes of request: ",
-            # + self.request[:10],
-            "content_type": "binary/custom-server-binary-type",
-            "content_encoding": "binary",
-        }
-        return response
-
-# todo not using this
-    def _create_message(
-        self, *, content_bytes, content_type, content_encoding
-    ):
-        # jsonheader = {
-        #     "byteorder": sys.byteorder,
-        #     "content-type": content_type,
-        #     "content-encoding": content_encoding,
-        #     "content-length": len(content_bytes),
-        # }
-        header = ResponseHeader(
-            sys.byteorder, 'text/json', content_encoding, len(content_bytes), 'file1.txt')
-        jsonheader = header.createHeader()
-
-        jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
-        message_hdr = struct.pack(">H", len(jsonheader_bytes))
-        message = message_hdr + jsonheader_bytes + content_bytes
-        return message
-
     def process_events(self, mask):
         if selectors.EVENT_READ & mask:
             self.read()
@@ -247,7 +162,7 @@ class Message:
         We need to check for updates and respond.
         This is called by the read() function and after this function executes we only write.
         """
-        
+
         client_no = self.jsonheader["client_id"]
         filename = self.db.checkUpdate(client_no)
 
@@ -276,7 +191,6 @@ class Message:
 
         content_encoding = "utf-8"
         content_bytes = self._json_encode(content, content_encoding)
-    
 
         jsonheader = self.generate_response_header(
             sys.byteorder, 'text/json', content_encoding, len(content_bytes), self.filename)
@@ -287,7 +201,7 @@ class Message:
 
         self.response_created = True
         self._send_buffer += message
-    
+
     def generate_response_header(self, byteorder, content_type, content_encoding, content_length, filename):
         """
         This function creates the jsonHeader to be sent. The jsonHeader contains imp info such as
@@ -301,7 +215,7 @@ class Message:
 
         # if client_id is not found or server has nothing to send then return a jsonHeader such that
         # jsonHeader["file-name"] = 0
-        if self.filename == 0:      
+        if self.filename == 0:
             self.content_length = 0
             jsonHeader = {
                 "byteorder": sys.byteorder,
@@ -327,7 +241,6 @@ class Message:
             }
             return jsonHeader
 
-        
     def close(self):
         print("closing connection to", self.addr)
         try:
