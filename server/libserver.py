@@ -48,6 +48,11 @@ class Message:
         self._send_buffer = b""
         self._jsonheader_len = None
         self.db = Database()
+        self.file_size = None
+        self.sending_file = False
+        self.file_bytes_sent = 0
+        self.file_buffer = b""
+        self.file = None
 
     def _set_selector_events_mask(self, mode):
         # Set selector to listen for events: mode is 'r', 'w', or 'rw'.
@@ -85,8 +90,26 @@ class Message:
                 pass
             else:
                 self._send_buffer = self._send_buffer[sent:]
-                # Close when the buffer is drained. The response has been sent.
+                # when this buffer is drained we will send the file
                 if sent and not self._send_buffer:
+                    self.sending_file = True
+
+    def send_file(self):
+        # fill up file buffer if empty
+        space = 1024 - len(self.file_buffer)
+        self.file_buffer += self.file.read(space)
+
+        if self.file_bytes_sent < self.file_size:
+            try:
+                sent = self.sock.send(self.file_buffer)
+            except BlockingIOError:
+                # resource is unabliable
+                pass
+            else:
+                self.file_buffer = self.file_buffer[sent:]
+                self.file_bytes_sent += sent
+                # Close when the buffer is drained. The response has been sent.
+                if self.file_bytes_sent == self.file_size:
                     self.close()
 
     # Decodes bytes into JSON
@@ -127,7 +150,10 @@ class Message:
             if not self.response_created:
                 self.create_response()
 
-        self._write()
+        if self.sending_file:
+            self.send_file()
+        else:
+            self._write()
 
     def process_protoheader(self):
         hdrlen = 2
@@ -186,18 +212,17 @@ class Message:
         if self.filename == 0:
             content = ""
         else:
-            f = open(f'./serverFiles/{self.filename}', "r")
-            content = f.read()
+            self.file = open(f'./serverFiles/{self.filename}', "rb")
 
         content_encoding = "utf-8"
-        content_bytes = self._json_encode(content, content_encoding)
+        self.file_size = os.stat(f'./serverFiles/{self.filename}').st_size
 
         jsonheader = self.generate_response_header(
-            sys.byteorder, 'text/json', content_encoding, len(content_bytes), self.filename)
+            sys.byteorder, 'text/json', content_encoding, self.file_size, self.filename)
 
         jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
         message_hdr = struct.pack(">H", len(jsonheader_bytes))
-        message = message_hdr + jsonheader_bytes + content_bytes
+        message = message_hdr + jsonheader_bytes
 
         self.response_created = True
         self._send_buffer += message

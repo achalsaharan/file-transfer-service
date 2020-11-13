@@ -25,7 +25,7 @@ def _json_decode(json_bytes, encoding):
 
 json_header = {
     "content-type": "text/json",
-    "client_id": 6,
+    "client_id": 3,
     "content-length": 0
 }
 
@@ -48,11 +48,18 @@ print(json_header)
 
 # reciving the content
 content_length = json_header['content-length']
-if content_length == 0:
-    print("***No updates from server***")
-else:
-    content = sock.recv(content_length)
-    content = _json_decode(content, "utf-8")
-    print(content)
+filename = json_header['file-name']
+
+# make file
+f = open(f'./clientFiles/{filename}', 'wb')
+
+while True:
+    d = sock.recv(1024)
+    if d:
+        f.write(d)
+    else:
+        break
+
+f.close()
 
 sock.close()
