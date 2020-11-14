@@ -25,10 +25,27 @@ class Database:
                 return row[1]
 
         return 0
+     
+    def erase_entry(self, clientNo):
+        clientNo = str(clientNo)
+                
+        lines = list()
 
+        with open('./database/updates.csv', 'r') as readFile:
+            reader = csv.reader(readFile)
+            for row in reader:
+                if row[0] == clientNo:
+                    continue
+                lines.append(row)
 
-# for testing this module
-# clientNo = input('enter client no: ')
+                
+        with open('./database/updates.csv', 'w', newline='') as writeFile:
+            writer = csv.writer(writeFile)
+            for row in lines:
+                writer.writerow(row)
+
+    # for testing this module
+    # clientNo = input('enter client no: ')
 
 # update = updateChecker(clientNo)
 
