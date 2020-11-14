@@ -40,12 +40,12 @@ The client and server use custom header and message formats to communicate with 
 #### Server
 The server folder contains the server application, to run the server application. </br>
 `python3 fileServer.py`</br>
-To configure the `HOSTNAME` and `PORT` go to `serverConfig.py`<\br>
+To configure the `HOSTNAME` and `PORT` go to `serverConfig.py`
 
 #### Client
 The server folder contains the client application, to run the client application. </br>
 `python3 fileClient.py`</br>
-To configure the `HOSTNAME` and `PORT` go to `clientConfig.py`<\br>
+To configure the `HOSTNAME` and `PORT` go to `clientConfig.py`
 
 ## Team
 [Achal Saharan](https://github.com/achalsaharan)</br>
