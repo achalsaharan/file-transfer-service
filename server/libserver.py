@@ -92,7 +92,11 @@ class Message:
                 self._send_buffer = self._send_buffer[sent:]
                 # when this buffer is drained we will send the file
                 if sent and not self._send_buffer:
-                    self.sending_file = True
+                    if self.filename!=0:
+                        self.sending_file = True
+                    else:
+                        self.close()
+                    
 
     def send_file(self):
         # fill up file buffer if empty
@@ -110,6 +114,8 @@ class Message:
                 self.file_bytes_sent += sent
                 # Close when the buffer is drained. The response has been sent.
                 if self.file_bytes_sent == self.file_size:
+                    client_no = self.jsonheader["client_id"]
+                    self.db.erase_entry(client_no)
                     self.close()
 
     # Decodes bytes into JSON
@@ -191,8 +197,7 @@ class Message:
 
         client_no = self.jsonheader["client_id"]
         filename = self.db.checkUpdate(client_no)
-        # filename = "pdf_file1.pdf"
-        filename = "executable.exe"
+
         if filename == 0:
             self.filename = 0
             print('no file to send')
@@ -212,11 +217,13 @@ class Message:
         """
         if self.filename == 0:
             content = ""
+            self.file_size = 0
         else:
             self.file = open(f'./serverFiles/{self.filename}', "rb")
+            self.file_size = os.stat(f'./serverFiles/{self.filename}').st_size
 
         content_encoding = "utf-8"
-        self.file_size = os.stat(f'./serverFiles/{self.filename}').st_size
+        # self.file_size = os.stat(f'./serverFiles/{self.filename}').st_size
 
         jsonheader = self.generate_response_header(
             sys.byteorder, 'text/json', content_encoding, self.file_size, self.filename)
