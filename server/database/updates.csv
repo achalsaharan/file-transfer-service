@@ -1,3 +1,5 @@
 id,files,md5hash
 1,file1.txt,file1hash
 2,file2.txt,file2hash
+3,pdf_file1.pdf,pdf_file1_hash
+4,ideal.dmg,dmg_file_hash

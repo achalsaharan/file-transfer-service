@@ -35,35 +35,6 @@ from databaseConnection import Database
 # }
 
 
-class FileResponse:
-    def __init__(self, filename):
-        self.filename = filename
-
-
-class ResponseHeader:
-    def __init__(self, byteorder, content_type, content_encoding, content_length, filename):
-        self.byteorder = byteorder
-        self.content_type = content_type
-        self.content_encoding = content_encoding
-        self.content_length = content_length
-        self.filename = filename
-
-    def createHeader(self):
-        db = Database()
-        md_5_hash = db.findFileHash(self.filename)
-        extension = self.filename.split('.')[1]
-        jsonHeader = {
-            "byteorder": sys.byteorder,
-            "content-type": self.content_type,
-            "content-encoding": self.content_encoding,
-            "content-length": self.content_length,
-            "file-name": self.filename,
-            "extension": extension,
-            "md-5-hash": md_5_hash
-        }
-        return jsonHeader
-
-
 class Message:
     def __init__(self, selector, sock, addr):
         self.selector = selector
@@ -77,6 +48,11 @@ class Message:
         self._send_buffer = b""
         self._jsonheader_len = None
         self.db = Database()
+        self.file_size = None
+        self.sending_file = False
+        self.file_bytes_sent = 0
+        self.file_buffer = b""
+        self.file = None
 
     def _set_selector_events_mask(self, mode):
         # Set selector to listen for events: mode is 'r', 'w', or 'rw'.
@@ -114,8 +90,26 @@ class Message:
                 pass
             else:
                 self._send_buffer = self._send_buffer[sent:]
-                # Close when the buffer is drained. The response has been sent.
+                # when this buffer is drained we will send the file
                 if sent and not self._send_buffer:
+                    self.sending_file = True
+
+    def send_file(self):
+        # fill up file buffer if empty
+        space = 1024 - len(self.file_buffer)
+        self.file_buffer += self.file.read(space)
+
+        if self.file_bytes_sent < self.file_size:
+            try:
+                sent = self.sock.send(self.file_buffer)
+            except BlockingIOError:
+                # resource is unabliable
+                pass
+            else:
+                self.file_buffer = self.file_buffer[sent:]
+                self.file_bytes_sent += sent
+                # Close when the buffer is drained. The response has been sent.
+                if self.file_bytes_sent == self.file_size:
                     self.close()
 
     # Decodes bytes into JSON
@@ -130,62 +124,6 @@ class Message:
     # Encode JSON into bytes
     def _json_encode(self, obj, encoding):
         return json.dumps(obj, ensure_ascii=False).encode(encoding)
-
-# todo not using this
-    def _create_response_json_content(self):
-
-        # we are creating the actual response here
-        # neither the json header nor the fixed length header
-
-        # looks like this is not even the actual response
-
-        if self.filename == 0:
-            content = {
-                "update": "False",
-                "filename": "none"
-            }
-        else:
-            content = {
-                "update": "True",
-                "filename": self.filename
-            }
-
-        content_encoding = "utf-8"
-        response = {
-            "content_bytes": self._json_encode(content, content_encoding),
-            "content_type": "text/json",
-            "content_encoding": content_encoding,
-        }
-        return response
-
-# todo not using this
-    def _create_response_binary_content(self):
-        response = {
-            "content_bytes": b"First 10 bytes of request: ",
-            # + self.request[:10],
-            "content_type": "binary/custom-server-binary-type",
-            "content_encoding": "binary",
-        }
-        return response
-
-# todo not using this
-    def _create_message(
-        self, *, content_bytes, content_type, content_encoding
-    ):
-        # jsonheader = {
-        #     "byteorder": sys.byteorder,
-        #     "content-type": content_type,
-        #     "content-encoding": content_encoding,
-        #     "content-length": len(content_bytes),
-        # }
-        header = ResponseHeader(
-            sys.byteorder, 'text/json', content_encoding, len(content_bytes), 'file1.txt')
-        jsonheader = header.createHeader()
-
-        jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
-        message_hdr = struct.pack(">H", len(jsonheader_bytes))
-        message = message_hdr + jsonheader_bytes + content_bytes
-        return message
 
     def process_events(self, mask):
         if selectors.EVENT_READ & mask:
@@ -212,7 +150,10 @@ class Message:
             if not self.response_created:
                 self.create_response()
 
-        self._write()
+        if self.sending_file:
+            self.send_file()
+        else:
+            self._write()
 
     def process_protoheader(self):
         hdrlen = 2
@@ -247,7 +188,7 @@ class Message:
         We need to check for updates and respond.
         This is called by the read() function and after this function executes we only write.
         """
-        
+
         client_no = self.jsonheader["client_id"]
         filename = self.db.checkUpdate(client_no)
         # filename = "pdf_file1.pdf"
@@ -272,25 +213,21 @@ class Message:
         if self.filename == 0:
             content = ""
         else:
-            with open(f'./serverFiles/{self.filename}', "rb") as f:
-                content = f.read()
-            # f = open(f'./serverFiles/{self.filename}', "rb")
-            # content = f.read()
+            self.file = open(f'./serverFiles/{self.filename}', "rb")
 
         content_encoding = "utf-8"
-        # content_bytes = self._json_encode(content, content_encoding)
-    
+        self.file_size = os.stat(f'./serverFiles/{self.filename}').st_size
 
         jsonheader = self.generate_response_header(
-            sys.byteorder, 'text/json', content_encoding, len(content), self.filename)
+            sys.byteorder, 'text/json', content_encoding, self.file_size, self.filename)
 
         jsonheader_bytes = self._json_encode(jsonheader, "utf-8")
         message_hdr = struct.pack(">H", len(jsonheader_bytes))
-        message = message_hdr + jsonheader_bytes + content
+        message = message_hdr + jsonheader_bytes
 
         self.response_created = True
         self._send_buffer += message
-    
+
     def generate_response_header(self, byteorder, content_type, content_encoding, content_length, filename):
         """
         This function creates the jsonHeader to be sent. The jsonHeader contains imp info such as
@@ -304,7 +241,7 @@ class Message:
 
         # if client_id is not found or server has nothing to send then return a jsonHeader such that
         # jsonHeader["file-name"] = 0
-        if self.filename == 0:      
+        if self.filename == 0:
             self.content_length = 0
             jsonHeader = {
                 "byteorder": sys.byteorder,
@@ -330,7 +267,6 @@ class Message:
             }
             return jsonHeader
 
-        
     def close(self):
         print("closing connection to", self.addr)
         try:
